@@ -1,0 +1,20 @@
+#!/bin/sh
+
+verbose_flag=
+
+while getopts "+v" optopt; do
+    case $optopt in
+    v)  verbose_flag=v
+        ;;
+    ?)  echo "usage: $0 [-v]"
+        exit 1
+        ;;
+    esac
+done
+
+if [ -z "${AUTORECONF:=$(command -v autoreconf)}" ]; then
+    echo "no autoreconf found -- please install autoconf"
+    exit 1
+fi
+
+$AUTORECONF -i$verbose_flag

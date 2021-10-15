@@ -1,0 +1,4 @@
+AT_INIT([main])
+AT_SETUP([check for basic usage])
+AT_CHECK([/bin/true])
+AT_CLEANUP
