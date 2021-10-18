@@ -1,0 +1,42 @@
+.Dd October 18, 2021
+.Dt daemonize 3
+.Os
+.Sh NAME
+.Nm daemonize
+.Nd background the current process
+.Sh SYNOPSIS
+.In amia.h
+.Ft int
+.Fn daemonize "const char *path"
+.Sh DESCRIPTION
+.Fn daemonize
+backgrounds the current process according to common guidelines for
+SysV daemons. These steps include:
+.Pp
+.Bl -enum -compact -offset indent
+.It
+Closing all non-standard file descriptors
+.It
+Resetting all signal handlers to defaults
+.It
+Sanitizing the environment
+.It
+Forking and re-parenting the process
+.El
+.Pp
+The process ID of the newly daemonized process is written to the
+.Fa path
+argument.
+.Sh RETURN VALUE
+.Fn daemonize
+returns
+.Dv AMIA_EOK
+if successful; otherwise one of the values in
+.Sx ERRORS
+is returned.
+.Sh ERRORS
+.Bl -tag
+.It Dv AMIA_EUNKNOWN
+An unknown error occurred.
+.Sh SEE ALSO
+.Xr daemon 7
