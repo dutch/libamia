@@ -20,6 +20,9 @@
 
 #include <sys/types.h>
 
-int daemonize(char *s, size_t slen);
+#define AMIA_EOK      0
+#define AMIA_EUNKNOWN 1
+
+int daemonize(void);
 
 #endif

@@ -15,63 +15,95 @@
    License along with libamia.  If not, see
    <https://www.gnu.org/licenses/>. */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <amia.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
+#include <sys/select.h>
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <limits.h>
 
 static int
-secondchild(void)
+secondchild(int outdes, int errdes)
 {
+  int nullfd, fd;
+
+  if ((nullfd = open("/dev/null", O_RDWR)) == -1) {
+    write(errdes, " ", 1);
+    exit(EXIT_FAILURE);
+  }
+
+  for (fd = 0; fd <= 2; ++fd) {
+    if (dup2(nullfd, fd) == -1) {
+      write(errdes, " ", 1);
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  close(nullfd);
+
   umask(0);
 
-  if (chdir("/") == -1)
-    return -errno;
+  if (chdir("/") == -1) {
+    write(errdes, " ", 1);
+    exit(EXIT_FAILURE);
+  }
 
   /* TODO: Write the PID here. */
 
   /* TODO: Drop privileges here. */
 
-  return 0;
+  write(outdes, " ", 1);
+
+  return AMIA_EOK;
 }
 
 static int
-firstchild(void)
+firstchild(int outdes, int errdes)
 {
-  if (setsid() == -1)
-    return -errno;
+  if (setsid() == -1) {
+    write(errdes, " ", 1);
+    exit(EXIT_FAILURE);
+  }
 
-  if (!fork())
-    return secondchild();
+  switch (fork()) {
+  case -1:
+    write(errdes, " ", 1);
+    exit(EXIT_FAILURE);
+
+  case 0:
+    return secondchild(outdes, errdes);
+  }
 
   exit(EXIT_SUCCESS);
 }
 
 int
-daemonize(char *s, size_t slen)
+daemonize(void)
 {
-  int sig;
+  char ch;
+  int sig, outpipe[2], errpipe[2];
   sigset_t sigs;
   struct rlimit rlim;
   struct sigaction sa;
+  fd_set readfds;
 
-  if (getrlimit(RLIMIT_NOFILE, &rlim) == -1) {
-    memcpy(s, "getrlimit", 10 <= slen ? 10 : slen);
-    return -errno;
-  }
+  if (getrlimit(RLIMIT_NOFILE, &rlim) == -1)
+    return AMIA_EUNKNOWN;
 
   while (rlim.rlim_max --> 3)
     close(rlim.rlim_max);
 
-  if (sigfillset(&sigs) == -1) {
-    memcpy(s, "sigfillset", 11 <= slen ? 11 : slen);
-    return -errno;
-  }
+  if (sigfillset(&sigs) == -1)
+    return AMIA_EUNKNOWN;
 
   for (sig = 1; sig <= SIGRTMAX; ++sig) {
     if (sig == SIGKILL || sig == SIGSTOP)
@@ -82,33 +114,47 @@ daemonize(char *s, size_t slen)
 
     sa.sa_handler = SIG_DFL;
 
-    if (sigemptyset(&sa.sa_mask) == -1) {
-      memcpy(s, "sigemptyset", 12 <= slen ? 12 : slen);
-      return -errno;
-    }
+    if (sigemptyset(&sa.sa_mask) == -1)
+      return AMIA_EUNKNOWN;
 
-    if (sigaction(sig, &sa, NULL) == -1) {
-      memcpy(s, "sigaction", 10 <= slen ? 10 : slen);
-      return -errno;
-    }
+    if (sigaction(sig, &sa, NULL) == -1)
+      return AMIA_EUNKNOWN;
   }
 
-  if (sigprocmask(SIG_UNBLOCK, &sigs, NULL) == -1) {
-    memcpy(s, "sigprocmask", 12 <= slen ? 12 : slen);
-    return -errno;
-  }
+  if (sigprocmask(SIG_UNBLOCK, &sigs, NULL) == -1)
+    return AMIA_EUNKNOWN;
 
   /* TODO: Sanitize the environment block here. */
 
+  pipe(outpipe);
+  pipe(errpipe);
+
   switch (fork()) {
   case -1:
-    memcpy(s, "fork", 5 <= slen ? 5 : slen);
-    return -errno;
+    return AMIA_EUNKNOWN;
 
   case 0:
-    return firstchild();
+    close(outpipe[0]);
+    close(errpipe[0]);
+    return firstchild(outpipe[1], errpipe[1]);
   }
 
-  sleep(1);
-  exit(EXIT_SUCCESS);
+  for (;;) {
+    FD_ZERO(&readfds);
+    FD_SET(outpipe[0], &readfds);
+    FD_SET(errpipe[0], &readfds);
+
+    if (select(errpipe[0] + 1, &readfds, NULL, NULL, NULL) == -1) {
+      if (errno == EINTR)
+        continue;
+
+      return AMIA_EUNKNOWN;
+    }
+
+    if (FD_ISSET(errpipe[0], &readfds))
+      return AMIA_EUNKNOWN;
+
+    if (FD_ISSET(outpipe[0], &readfds))
+      exit(EXIT_SUCCESS);
+  }
 }
