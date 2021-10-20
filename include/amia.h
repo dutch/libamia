@@ -23,6 +23,6 @@
 #define AMIA_EOK      0
 #define AMIA_EUNKNOWN 1
 
-int daemonize(void);
+int daemonize(const char *path);
 
 #endif

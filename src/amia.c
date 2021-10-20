@@ -32,9 +32,11 @@
 #include <limits.h>
 
 static int
-secondchild(int outdes, int errdes)
+secondchild(int outdes, int errdes, const char *path)
 {
-  int nullfd, fd;
+  int nullfd, fd, pidfd;
+  pid_t pid;
+  struct flock l;
 
   if ((nullfd = open("/dev/null", O_RDWR)) == -1) {
     write(errdes, " ", 1);
@@ -57,7 +59,31 @@ secondchild(int outdes, int errdes)
     exit(EXIT_FAILURE);
   }
 
-  /* TODO: Write the PID here. */
+  if ((pidfd = open(path, O_RDWR | O_EXCL | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR)) == -1) {
+    write(errdes, " ", 1);
+    exit(EXIT_FAILURE);
+  }
+
+  pid = getpid();
+
+  memset(&l, 0, sizeof(struct flock));
+  l.l_type = F_WRLCK;
+  l.l_whence = SEEK_SET;
+  l.l_pid = pid;
+
+  if (fcntl(pidfd, F_SETLK, &l) == -1) {
+    write(errdes, " ", 1);
+    exit(EXIT_FAILURE);
+  }
+
+  dprintf(pidfd, "%ld\n", pid);
+
+  l.l_type = F_UNLCK;
+
+  if (fcntl(pidfd, F_SETLK, &l) == -1) {
+    write(errdes, " ", 1);
+    exit(EXIT_FAILURE);
+  }
 
   /* TODO: Drop privileges here. */
 
@@ -67,7 +93,7 @@ secondchild(int outdes, int errdes)
 }
 
 static int
-firstchild(int outdes, int errdes)
+firstchild(int outdes, int errdes, const char *path)
 {
   if (setsid() == -1) {
     write(errdes, " ", 1);
@@ -80,14 +106,14 @@ firstchild(int outdes, int errdes)
     exit(EXIT_FAILURE);
 
   case 0:
-    return secondchild(outdes, errdes);
+    return secondchild(outdes, errdes, path);
   }
 
   exit(EXIT_SUCCESS);
 }
 
 int
-daemonize(void)
+daemonize(const char *path)
 {
   char ch;
   int sig, outpipe[2], errpipe[2];
@@ -136,7 +162,7 @@ daemonize(void)
   case 0:
     close(outpipe[0]);
     close(errpipe[0]);
-    return firstchild(outpipe[1], errpipe[1]);
+    return firstchild(outpipe[1], errpipe[1], path);
   }
 
   for (;;) {
