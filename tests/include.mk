@@ -17,10 +17,10 @@ DISTCLEANFILES = %D%/atconfig $(top_builddir)/testsuite.log
 	$(AUTOTEST) -I %D% -o $@.tmp $(top_srcdir)/$@.at && mv $@.tmp $@
 
 check-local: %D%/atconfig %D%/testsuite
-	$(top_srcdir)/%D%/testsuite $(TESTSUITEFLAGS)
+	$(top_srcdir)/%D%/testsuite -C %D% $(TESTSUITEFLAGS)
 
 installcheck-local: %D%/atconfig %D%/testsuite
-	$(top_srcdir)/%D%/testsuite AUTOTEST_PATH='$(bindir)' $(TESTSUITEFLAGS)
+	$(top_srcdir)/%D%/testsuite AUTOTEST_PATH='$(bindir)' -C %D% $(TESTSUITEFLAGS)
 
 clean-local:
-	test ! -f %D%/testsuite || %D%/testsuite --clean
+	test ! -f %D%/testsuite || %D%/testsuite -C %D% --clean
