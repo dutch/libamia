@@ -76,7 +76,7 @@ secondchild(int outdes, int errdes, const char *path)
     exit(EXIT_FAILURE);
   }
 
-  dprintf(pidfd, "%ld\n", pid);
+  dprintf(pidfd, "%ld\n", (long)pid);
 
   l.l_type = F_UNLCK;
 
@@ -115,7 +115,6 @@ firstchild(int outdes, int errdes, const char *path)
 int
 daemonize(const char *path)
 {
-  char ch;
   int sig, outpipe[2], errpipe[2];
   sigset_t sigs;
   struct rlimit rlim;
